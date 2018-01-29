@@ -1,22 +1,31 @@
-from time import sleep
 from collections import namedtuple
+from curio import run, spawn, sleep
 
 from fixtures import LEDStrip
-from effects import Rainbow, RandomRGB, Patric
+from effects import Speed, Rainbow, RandomRGB, Patric
 
-Node = namedtuple('Node', 'ip')
-l = LEDStrip(Node('192.168.1.101'))
-r = Rainbow(l.rgb)
-rr = RandomRGB(l.rgb, 10, mode = max)
-p = Patric(l.rgb)
 
-for item in l.rgb:
-    item.set_rgb(10, 10, 10, name = 'constant')
+async def main():
+    Node = namedtuple('Node', 'ip')
+    l = LEDStrip(Node('192.168.1.106'))
 
-while True:
-    r.next()
-    rr.next()
-    p.next()
-    l.update()
+    s = Speed(200)
 
-    sleep(1/10)
+    #r = Rainbow(l.rgb, s)
+    #r.start()
+    #rr = RandomRGB(l.rgb, s, 10, mode = max)
+    #await spawn(rr.start())
+    p = Patric(l.rgb, s)
+    await spawn(p.start())
+
+    # for item in l.rgb:
+    #     item.set_rgb(10, 10, 10, name = 'constant')
+
+    while True:
+        lupdate = await spawn(l.update())
+
+        await lupdate.join()
+        await sleep(1/10)
+
+if __name__ == '__main__':
+    run(main)

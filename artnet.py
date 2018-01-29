@@ -1,6 +1,7 @@
-from curio import run
-from curio.socket import *
 import bitstring
+
+#from curio import run
+from curio.socket import *
 
 from constants import ARTNET_POLL, ARTNET_DMX, ARTNET_PORT
 
@@ -13,7 +14,7 @@ class ArtNet:
 
         self.sequence = 0
 
-    def update(self):
+    async def update(self):
         rest = list(flatten(self.value))
         universes = []
         while len(rest):
@@ -22,7 +23,7 @@ class ArtNet:
 
         for i, data in enumerate(universes):
             packet = dmx_frame(data, i, self.sequence)
-            run(send_packet(self.sock, self.node.ip, packet))
+            await send_packet(self.sock, self.node.ip, packet)
 
         self.sequence = (self.sequence + 1) % 255
 
@@ -34,16 +35,18 @@ def flatten(items):
             yield item
 
 def dmx_frame(data, universe, sequence = 0):
-    fmt = ', '.join(['bytes:8=header',
+    packet_format = ', '.join([
+        'bytes:8=header',
         'uintle:16=opcode',
         'uintle:16=protocol_version',
         'uint:8=sequence',
         'uint:8=physical',
         'uintle:16=universe',
         'uintbe:16=length',
-        f'bytes:{len(data)}=framedata'])
+        'bytes=framedata'
+    ])
 
-    return bitstring.pack(fmt,
+    return bitstring.pack(packet_format,
         header='Art-Net\0'.encode('utf-8'),
         opcode=ARTNET_DMX,
         protocol_version=0,
@@ -53,26 +56,20 @@ def dmx_frame(data, universe, sequence = 0):
         length=len(data),
         framedata=data).tobytes()
 
-    #return struct.pack(
-        #f'!8sHHBBHH{length}B',
-    return bitstring.pack(fmt,
-        'Art-Net',
-        ARTNET_DMX,
-        0,
-        sequence,
-        0,
-        universe,
-        length,
-        *data)
-
 def poll_request(ttm=True):
-    return struct.pack(
-        '!8sHHBB',
-        b'Art-Net',
-        ARTNET_POLL,
-        0,
-        ttm,
-        0)
+    packet_format = ', '.join([
+        'bytes:8=header',
+        'uintle:16=opcode',
+        'uintle:16=protocol_version',
+        'uint:8=ttm',
+        'uint:8=pad'
+    ])
+    return bitstring.pack(packet_format,
+        header='Art-Net\0'.encode('utf-8'),
+        opcode=ARTNET_POLL,
+        protocol_version=0,
+        ttm=ttm,
+        pad=0)
 
 async def search_nodes(sock, interface):
     packet = poll_request()
